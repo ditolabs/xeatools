@@ -76,18 +76,32 @@ if [ -f "$CONFIG_FILE" ]; then
   echo -e "${GREEN}✓ Konfigurasi di-backup ke merge_pdf_config.json.bak${NC}"
 fi
 
-# ── Pull update ──────────────────────────────────────────────
-echo -e "${CYAN}Mengunduh update...${NC}"
+# ── Update ───────────────────────────────────────────────────
+echo ""
+echo -e "${CYAN}⬇ Mengunduh update dari GitHub...${NC}"
 git remote set-url origin "$REPO_URL_WITH_TOKEN"
-git pull origin main --quiet
 
+# Fetch dulu tanpa merge/rebase
+git fetch origin main --quiet 2>&1
+if [ $? -ne 0 ]; then
+  echo -e "${RED}✗ Fetch gagal. Periksa koneksi internet.${NC}"
+  exit 1
+fi
+
+# Reset hard ke remote — selalu berhasil meski history diverged
+git reset --hard origin/main --quiet 2>&1
 if [ $? -eq 0 ]; then
   NEW=$(git rev-parse HEAD | cut -c1-7)
   echo -e "${GREEN}✓ Update berhasil! ${LOCAL} → ${NEW}${NC}"
   echo ""
-  echo -e "${YELLOW}Restart merge_web.py untuk menerapkan perubahan.${NC}"
+  echo -e "${YELLOW}⚠  Restart server untuk menerapkan perubahan:${NC}"
+  echo "   pkill -f merge_web.py && cd $INSTALL_DIR && python merge_web.py &"
 else
-  echo -e "${RED}✗ Update gagal. Coba jalankan ulang.${NC}"
+  echo -e "${RED}✗ Update gagal. Memulihkan konfigurasi dari backup...${NC}"
+  if [ -f "${CONFIG_FILE}.bak" ]; then
+    cp "${CONFIG_FILE}.bak" "$CONFIG_FILE"
+    echo -e "${GREEN}✓ Konfigurasi dipulihkan.${NC}"
+  fi
   exit 1
 fi
 echo ""

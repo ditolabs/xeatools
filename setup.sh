@@ -5,8 +5,8 @@
 # ─────────────────────────────────────────────────────────────
 
 REPO_USER="ShadowSoldiers"
-REPO_NAME="PDF-Merge-Tools"
-REPO_URL="https://github.com/${REPO_USER}/${REPO_NAME}.git"
+REPO_NAME="xeatools"
+REPO_URL="https://github.com/ShadowSoldiers/xeatools.git"
 INSTALL_DIR="$HOME/${REPO_NAME}"
 
 RED='\033[0;31m'
@@ -36,11 +36,31 @@ if [ -z "$TOKEN" ]; then
   exit 1
 fi
 
-REPO_URL_WITH_TOKEN="https://${TOKEN}@github.com/${REPO_USER}/${REPO_NAME}.git"
+REPO_URL_WITH_TOKEN="https://${TOKEN}@github.com/ShadowSoldiers/xeatools.git"
+
+# ── Step 0: Fix repo & curl dulu ────────────────────────────
+echo -e "${CYAN}[0/6] Memperbaiki repo Termux...${NC}"
+# Ganti mirror ke Cloudflare agar curl tidak rusak
+termux-change-repo 2>/dev/null << 'EOF'
+2
+1
+EOF
+# Atau langsung tulis manual jika termux-change-repo gagal
+if ! grep -q "packages-cf" "$PREFIX/etc/apt/sources.list" 2>/dev/null; then
+  echo "deb https://packages-cf.termux.dev/apt/termux-main stable main" \
+    > "$PREFIX/etc/apt/sources.list"
+fi
+# Bersihkan lock file
+rm -f "$PREFIX/var/lib/dpkg/lock" "$PREFIX/var/lib/dpkg/lock-frontend" \
+      "$PREFIX/var/cache/apt/archives/lock" 2>/dev/null
+dpkg --configure -a 2>/dev/null || true
+echo -e "${GREEN}✓ Repo diperbaiki${NC}"
+echo ""
 
 # ── Step 1: Update Termux ────────────────────────────────────
 echo -e "${CYAN}[1/6] Update paket Termux...${NC}"
-pkg update -y && pkg upgrade -y
+DEBIAN_FRONTEND=noninteractive pkg update -y 2>/dev/null || apt-get update --fix-missing -y 2>/dev/null || true
+DEBIAN_FRONTEND=noninteractive pkg upgrade -y 2>/dev/null || true
 echo -e "${GREEN}✓ Termux diperbarui${NC}"
 echo ""
 
@@ -72,6 +92,8 @@ if [ $? -ne 0 ]; then
   echo -e "${RED}✗ Clone gagal. Periksa token dan koneksi internet.${NC}"
   exit 1
 fi
+# Set strategi pull default agar update.sh tidak butuh konfirmasi
+git -C "$INSTALL_DIR" config pull.rebase true
 echo -e "${GREEN}✓ Repository berhasil di-clone ke ${INSTALL_DIR}${NC}"
 echo ""
 

@@ -32,6 +32,8 @@ DEFAULT_CONFIG = {
     "source_dir"      : "/sdcard/Documents",
     "output_dir"      : "/sdcard/Documents/Hasil",
     "digit_count"     : 6,
+    "xea_username"    : "",
+    "xea_password"    : "",
     "sender_email"    : "",
     "sender_password" : "",
     "to"              : [],
@@ -43,6 +45,9 @@ DEFAULT_CONFIG = {
         "{daftar_pelanggan}\n\nTerlampir {jumlah_file} file PDF.\n\n"
         "Email ini dikirim otomatis oleh script merge_pdf."
     ),
+    "schedule_enabled": False,
+    "schedule_time"   : "08:00",
+    "schedule_days"   : [1, 2, 3, 4, 5],
 }
 
 def load_config() -> dict:
@@ -115,8 +120,8 @@ def find_pdfs(source_dir: str) -> list:
     return sorted(unique)
 
 def extract_stba_info(stba_path: Path) -> tuple:
-    """Kembalikan (nama_pelanggan, tipe_layanan_raw, folder_name)"""
-    nama = "-"; tipe = "-"
+    """Kembalikan (nama_pelanggan, tipe_layanan_raw, folder_name, serial_number)"""
+    nama = "-"; tipe = "-"; serial = "-"
     try:
         reader = PdfReader(str(stba_path))
         for page in reader.pages:
@@ -128,11 +133,16 @@ def extract_stba_info(stba_path: Path) -> tuple:
                 if tipe == "-":
                     m = re.search(r"Tipe\s+Layanan\s*:\s*(.+)", line, re.IGNORECASE)
                     if m: tipe = m.group(1).strip()
-                if nama != "-" and tipe != "-":
+                if serial == "-":
+                    m = re.search(
+                        r"(?:Serial\s*(?:Number|No\.?)|No\.?\s*[Ss]erial|Nomor\s*[Ss]eri(?:al)?)\s*:\s*(.+)",
+                        line, re.IGNORECASE)
+                    if m: serial = m.group(1).strip()
+                if nama != "-" and tipe != "-" and serial != "-":
                     break
-            if nama != "-" and tipe != "-":
+            if nama != "-" and tipe != "-" and serial != "-":
                 break
-    except Exception as e:
+    except Exception:
         pass
 
     folder_name = None
@@ -145,7 +155,7 @@ def extract_stba_info(stba_path: Path) -> tuple:
         folder_name = FALLBACK_FOLDER
         if tipe == "-": tipe = FALLBACK_FOLDER
 
-    return nama, tipe, folder_name
+    return nama, tipe, folder_name, serial
 
 def merge_two(first: Path, second: Path, output_path: Path) -> bool:
     writer = PdfWriter()
@@ -162,8 +172,8 @@ def merge_two(first: Path, second: Path, output_path: Path) -> bool:
 
 def save_note_txt(txt_path: Path, entries: list):
     with open(txt_path, "w", encoding="utf-8") as f:
-        for key, nama in entries:
-            f.write(f"{key} - {nama}\n")
+        for key, nama, serial in entries:
+            f.write(f"{key} - {nama} [{serial}]\n")
 
 def format_rupiah(angka: int) -> str:
     return "Rp {:>13,}".format(angka).replace(",", ".")
@@ -317,7 +327,7 @@ def run_merge(source_dir: str, output_dir: str,
     for key in pairs_ok:
         first_file  = sorted(pool["FIRST"][key])[0]
         second_file = sorted(pool["SECOND"][key])[0]
-        nama, tipe, folder_name = extract_stba_info(first_file)
+        nama, tipe, folder_name, serial = extract_stba_info(first_file)
 
         tipe_folder = out_root / folder_name
         tipe_folder.mkdir(parents=True, exist_ok=True)
@@ -331,10 +341,10 @@ def run_merge(source_dir: str, output_dir: str,
         if ok:
             success += 1
             moved_pairs.append((first_file, second_file))
-            summary[folder_name].append((key, nama, output_file))
-            txt_entries[folder_name].append((key, nama))
-            log_lines.append(f"[OK] {output_file}\n     STBA: {first_file}\n     STATS: {second_file}\n     Pelanggan: {nama}  Tipe: {tipe}")
-            emit("merge_ok", {"key": key, "nama": nama,
+            summary[folder_name].append((key, nama, serial, output_file))
+            txt_entries[folder_name].append((key, nama, serial))
+            log_lines.append(f"[OK] {output_file}\n     STBA: {first_file}\n     STATS: {second_file}\n     Pelanggan: {nama}  Serial: {serial}  Tipe: {tipe}")
+            emit("merge_ok", {"key": key, "nama": nama, "serial": serial,
                               "tipe": tipe, "folder": folder_name,
                               "output": str(output_file)})
         else:
@@ -413,8 +423,10 @@ def do_send_emails(summary: dict, cfg: dict, cb=None) -> dict:
     ok = fail = 0
     detail = []
     for tipe, entries in sorted(summary.items()):
-        pdf_files  = [e[2] for e in entries]
-        daftar_str = "\n".join(f"  {k} - {n}" for k, n, _ in entries)
+        pdf_files  = [e[3] for e in entries]
+        daftar_str = "\n".join(
+            f"  {k} - {n}  |  SN: {s}" for k, n, s, _ in entries
+        )
         success, msg = send_email_subfolder(tipe, pdf_files, daftar_str, cfg)
         detail.append((tipe, success, msg))
         emit("email_result", {"tipe": tipe, "ok": success, "msg": msg})

@@ -34,6 +34,7 @@ except ImportError:
 
 console = Console()
 
+# ─── Warna / style ──────────────────────────────────────────
 TITLE_COLOR  = "bold cyan"
 OK_COLOR     = "green"
 FAIL_COLOR   = "red"
@@ -43,15 +44,18 @@ ACCENT       = "bright_cyan"
 NAVY         = "blue"
 
 
+# ─── Header ─────────────────────────────────────────────────
 def print_header():
     console.clear()
     console.print(Panel(
         Text("merge_pdf  •  TUI", style="bold cyan", justify="center"),
+        subtitle="[dim]PT Galva Technologies Tbk[/dim]",
         border_style="cyan",
         padding=(1, 4),
     ))
 
 
+# ─── Menu Utama ─────────────────────────────────────────────
 def main_menu() -> str:
     console.print()
     menu = Table(show_header=False, box=box.ROUNDED,
@@ -62,7 +66,8 @@ def main_menu() -> str:
     items = [
         ("1", "▶  Jalankan Merge PDF"),
         ("2", "⚙  Konfigurasi Folder & Email"),
-        ("3", "0  Keluar"),
+        ("3", "📄 Lihat Ringkasan Total Terakhir"),
+        ("0", "✕  Keluar"),
     ]
     for no, label in items:
         menu.add_row(no, label)
@@ -70,10 +75,11 @@ def main_menu() -> str:
     console.print(menu)
     console.print()
     pilihan = Prompt.ask("[cyan]Pilih menu[/cyan]",
-                         choices=["0","1","2"], default="1")
+                         choices=["0","1","2","3"], default="1")
     return pilihan
 
 
+# ─── Menu Konfigurasi ───────────────────────────────────────
 def menu_config():
     print_header()
     cfg = core.load_config()
@@ -116,6 +122,7 @@ def menu_config():
     Prompt.ask("\n[dim]Tekan Enter untuk kembali[/dim]", default="")
 
 
+# ─── Jalankan Merge ─────────────────────────────────────────
 def menu_run():
     print_header()
     cfg = core.load_config()
@@ -170,11 +177,12 @@ def menu_run():
                               f"dipindah ke [{data['folder']}]")
             elif event == "txt_saved":
                 console.print(f"  [dim]📝 {Path(data['path']).name} disimpan[/dim]")
-            elif event == "estimasi":
-                console.print(f"  [cyan]💰 estimasi_biaya.txt disimpan[/cyan]")
+            elif event == "ringkasan":
+                console.print(f"  [cyan]📊 ringkasan_total.txt disimpan[/cyan]")
             elif event == "done":
                 result_holder.update(data)
 
+    # Jalankan di thread agar spinner bisa jalan
     exc_holder = {}
     def worker():
         try:
@@ -200,6 +208,7 @@ def menu_run():
         Prompt.ask("\n[dim]Tekan Enter untuk kembali[/dim]", default="")
         return
 
+    # Tampilkan ringkasan
     console.print()
     console.rule("[cyan]Ringkasan Hasil[/cyan]")
     console.print()
@@ -221,14 +230,15 @@ def menu_run():
     stat_table = Table(box=None, show_header=False, padding=(0,2))
     stat_table.add_column("Label", style="dim")
     stat_table.add_column("Nilai", style="bold white")
-    stat_table.add_row("Merge berhasil",  f"[green]{result['success']} pasang[/green]")
-    stat_table.add_row("Merge gagal",     f"[red]{result['failed']} pasang[/red]")
-    stat_table.add_row("File Kosong",     f"[yellow]{result['file_kosong']} file[/yellow]")
+    stat_table.add_row("Merge berhasil",      f"[green]{result['success']} pasang[/green]")
+    stat_table.add_row("Merge gagal",         f"[red]{result['failed']} pasang[/red]")
+    stat_table.add_row("File Kosong",         f"[yellow]{result['file_kosong']} file[/yellow]")
     if result.get("folder_bulan"):
-        stat_table.add_row("Diarsip ke", f"[cyan]{result['folder_bulan']}[/cyan]")
+        stat_table.add_row("Diarsip ke",      f"[cyan]{result['folder_bulan']}[/cyan]")
     console.print(stat_table)
     console.print()
 
+    # Konfirmasi kirim email
     if not result.get("summary"):
         Prompt.ask("[dim]Tekan Enter untuk kembali[/dim]", default="")
         return
@@ -241,10 +251,11 @@ def menu_run():
     console.rule("[cyan]Konfirmasi Kirim Email[/cyan]")
     console.print()
 
+    # Tampilkan detail file per tipe
     for folder_name, entries in sorted(result["summary"].items()):
         console.print(f"  [bold cyan]{folder_name}[/bold cyan] — {len(entries)} file:")
-        for key, nama, path in entries:
-            console.print(f"    [dim]•[/dim] {Path(str(path)).name}  [dim]{nama}[/dim]")
+        for key, nama, serial, path in entries:
+            console.print(f"    [dim]•[/dim] {Path(str(path)).name}  [dim]{nama}[/dim]  [dim]SN: {serial}[/dim]")
     console.print()
 
     if Confirm.ask("[cyan]Kirim semua file di atas melalui email?[/cyan]", default=False):
@@ -269,6 +280,24 @@ def menu_run():
     Prompt.ask("\n[dim]Tekan Enter untuk kembali ke menu[/dim]", default="")
 
 
+# ─── Lihat Ringkasan Total ──────────────────────────────────
+def menu_ringkasan():
+    print_header()
+    cfg      = core.load_config()
+    txt_path = Path(cfg["output_dir"]) / "ringkasan_total.txt"
+    console.print(Panel("[bold]Ringkasan Total Terakhir[/bold]", border_style="cyan"))
+    console.print()
+    if txt_path.exists():
+        with open(txt_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        console.print(Panel(content, border_style="dim", padding=(1,2)))
+    else:
+        console.print(f"[yellow]File tidak ditemukan: {txt_path}[/yellow]")
+        console.print("[dim]Jalankan merge terlebih dahulu.[/dim]")
+    Prompt.ask("\n[dim]Tekan Enter untuk kembali[/dim]", default="")
+
+
+# ─── Main Loop ──────────────────────────────────────────────
 def main():
     while True:
         print_header()
@@ -277,6 +306,8 @@ def main():
             menu_run()
         elif pilihan == "2":
             menu_config()
+        elif pilihan == "3":
+            menu_ringkasan()
         elif pilihan == "0":
             console.print("\n[cyan]Sampai jumpa![/cyan]\n")
             break
