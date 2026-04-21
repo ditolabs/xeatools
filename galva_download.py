@@ -238,9 +238,10 @@ def run_download(username: str, password: str,
             doc_code = doc.get("document_type_code", "")
             if doc_code not in TARGET_DOCS:
                 continue
-            status = save_document(number, doc, save_dir)
-            filename = f"{number}_{doc_code}.pdf"
-            if status == "ok":
+            status_file = save_document(number, doc, save_dir)
+            filename    = f"{number}_{doc_code}.pdf"
+            cur_status  = order.get("current_status_code", "")
+            if status_file == "ok":
                 total_saved += 1
                 emit("download_ok", {
                     "number"  : number,
@@ -249,12 +250,24 @@ def run_download(username: str, password: str,
                     "customer": customer,
                     "date"    : str(processed) if processed else "",
                 })
-            elif status == "skip":
+            elif status_file == "skip":
                 total_skip += 1
-                emit("download_skip", {"number": number, "doc_code": doc_code, "filename": filename})
+                # Bedakan: FN→CL (sudah diproses sebelumnya) vs skip biasa
+                reason = "sudah diproses saat FN" if cur_status == "CL" and \
+                    order.get("support_type_code") == "SERV" else "sudah ada"
+                emit("download_skip", {
+                    "number"  : number,
+                    "doc_code": doc_code,
+                    "filename": filename,
+                    "reason"  : reason,
+                })
             else:
                 total_fail += 1
-                emit("download_fail", {"number": number, "doc_code": doc_code, "msg": "Decode gagal"})
+                emit("download_fail", {
+                    "number"  : number,
+                    "doc_code": doc_code,
+                    "msg"     : "Decode gagal / data kosong",
+                })
 
     result = {
         "success": True,

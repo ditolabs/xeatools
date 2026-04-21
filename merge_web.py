@@ -252,6 +252,24 @@ input:checked+.slider:before{transform:translateX(20px)}
       </div>
       <div id="dl-log-box">Siap mengunduh dokumen...\n</div>
       <div id="dl-result-stats" class="hidden" style="margin-top:10px"></div>
+      <div id="dl-lanjut-wrap" class="hidden" style="margin-top:10px">
+        <button class="btn btn-success" style="width:100%;justify-content:center"
+          onclick="lanjutMerge()">▶ Lanjut ke Merge</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">📁 File di Folder Sumber</div>
+    <div class="card-body">
+      <div id="dl-history-info" style="font-size:.82rem;color:var(--gray);margin-bottom:8px">
+        Memuat...
+      </div>
+      <div id="dl-history-list" class="file-list hidden"></div>
+      <div class="btn-row mt8">
+        <button class="btn btn-outline" style="font-size:.8rem;padding:8px 14px"
+          onclick="loadDlHistory()">🔄 Refresh</button>
+      </div>
     </div>
   </div>
 </div>
@@ -482,12 +500,12 @@ function loadDlInfo() {
       el.innerHTML = '<span style="color:var(--orange)">⚠ Akun XEA belum dikonfigurasi — isi di tab Konfigurasi</span>';
     }
   });
-  // Set default tanggal: awal bulan – hari ini
   const today = new Date();
   const y = today.getFullYear(), m = String(today.getMonth()+1).padStart(2,'0');
   const d = String(today.getDate()).padStart(2,'0');
   document.getElementById('dl-dari').value   = `${y}-${m}-01`;
   document.getElementById('dl-sampai').value = `${y}-${m}-${d}`;
+  loadDlHistory();
 }
 
 function appendDlLog(msg, cls='') {
@@ -541,23 +559,33 @@ function startDownload() {
         document.getElementById('dl-progress-bar').style.width =
           Math.min(95, Math.round(done/qualified*90)+5) + '%';
     }
-    else if (t === 'download_skip') appendDlLog(`–  ${d.filename} (sudah ada)`, 'log-dim');
+    else if (t === 'download_skip') {
+      const reason = d.reason === 'sudah diproses saat FN'
+        ? '(Repair/Service — sudah diunduh saat status Finish)'
+        : '(sudah ada)';
+      appendDlLog(`–  ${d.filename} ${reason}`, 'log-dim');
+    }
     else if (t === 'download_fail') appendDlLog(`✗  ${d.number} ${d.doc_code} — ${d.msg||''}`, 'log-fail');
     else if (t === 'error')         appendDlLog(`ERROR: ${d.msg}`, 'log-fail');
     else if (t === 'done') {
       document.getElementById('dl-progress-bar').style.width = '100%';
       appendDlLog('');
       appendDlLog(`══ Selesai ══  Diunduh: ${d.saved}  Skip: ${d.skipped}  Gagal: ${d.failed}`, 'log-info');
+      if (d.skipped > 0)
+        appendDlLog(`  ℹ ${d.skipped} file dilewati — sudah pernah diunduh sebelumnya`, 'log-dim');
       document.getElementById('dl-result-stats').className = 'alert alert-' + (d.saved > 0 ? 'success' : 'warn');
       document.getElementById('dl-result-stats').innerHTML =
         d.saved > 0
           ? `✓ ${d.saved} file berhasil diunduh ke ${d.save_dir}`
           : `⚠ Tidak ada file baru. ${d.skipped} sudah ada, ${d.failed} gagal.`;
       document.getElementById('dl-result-stats').classList.remove('hidden');
+      // Tombol lanjut ke merge — muncul selalu setelah download selesai
+      document.getElementById('dl-lanjut-wrap').classList.remove('hidden');
       es.close();
       btn.disabled = false;
       btn.innerHTML = '📥 Mulai Download';
       setTimeout(()=>{ document.getElementById('dl-progress-wrap').classList.add('hidden'); }, 1500);
+      loadDlHistory();
     }
   };
   es.onerror = function() {
@@ -566,6 +594,41 @@ function startDownload() {
     btn.disabled = false;
     btn.innerHTML = '📥 Mulai Download';
   };
+}
+
+function lanjutMerge() {
+  // Pindah ke tab Merge dan sembunyikan tombol lanjut
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('tab-merge').classList.add('active');
+  document.querySelectorAll('.tab')[1].classList.add('active');
+  document.getElementById('dl-lanjut-wrap').classList.add('hidden');
+  loadCfgInfo();
+}
+
+function loadDlHistory() {
+  fetch('/api/download/files').then(r=>r.json()).then(r=>{
+    const info = document.getElementById('dl-history-info');
+    const list = document.getElementById('dl-history-list');
+    if (!r.files || r.files.length === 0) {
+      info.innerHTML = '<span class="dim">Belum ada file di folder sumber.</span>';
+      list.classList.add('hidden');
+      return;
+    }
+    const stba  = r.files.filter(f => f.includes('_STBA'));
+    const stats = r.files.filter(f => f.includes('_STATS') || f.includes('_STAT'));
+    info.innerHTML =
+      `<b>${r.files.length}</b> file PDF di folder sumber &nbsp;·&nbsp; ` +
+      `<span class="teal">${stba.length} STBA</span> &nbsp;·&nbsp; ` +
+      `<span style="color:var(--green)">${stats.length} STAT</span>`;
+    list.innerHTML = r.files.map(f =>
+      `<div class="file-item">📄 ${f}</div>`
+    ).join('');
+    list.classList.remove('hidden');
+  }).catch(()=>{
+    document.getElementById('dl-history-info').innerHTML =
+      '<span class="dim">Tidak bisa memuat daftar file.</span>';
+  });
 }
 
 // ── Merge ──────────────────────────────────────────────────
@@ -1077,6 +1140,28 @@ def api_ringkasan():
         with open(txt_path, "r", encoding="utf-8") as f:
             return jsonify({"content": f.read()})
     return jsonify({"content": ""})
+
+@app.route("/api/download/files")
+def api_download_files():
+    """Daftar file PDF di folder sumber."""
+    cfg      = core.load_config()
+    src_dir  = Path(cfg.get("source_dir", ""))
+    if not src_dir.exists():
+        return jsonify({"files": [], "total": 0})
+    files = sorted(
+        p.name for p in src_dir.glob("*.pdf")
+        if p.is_file()
+    ) + sorted(
+        p.name for p in src_dir.glob("*.PDF")
+        if p.is_file()
+    )
+    # Deduplikasi case-insensitive
+    seen, unique = set(), []
+    for f in files:
+        if f.lower() not in seen:
+            seen.add(f.lower())
+            unique.append(f)
+    return jsonify({"files": unique, "total": len(unique)})
 
 # ─────────────────────────────────────────────────────────────
 if __name__ == "__main__":
