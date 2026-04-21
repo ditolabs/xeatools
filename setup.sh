@@ -5,8 +5,8 @@
 # ─────────────────────────────────────────────────────────────
 
 REPO_USER="ShadowSoldiers"
-REPO_NAME="PDF-Merge-Tools"
-REPO_URL="https://github.com/ShadowSoldiers/PDF-Merge-Tools.git"
+REPO_NAME="xeatools"
+REPO_URL="https://github.com/ShadowSoldiers/xeatools.git"
 INSTALL_DIR="$HOME/${REPO_NAME}"
 
 RED='\033[0;31m'
@@ -36,7 +36,7 @@ if [ -z "$TOKEN" ]; then
   exit 1
 fi
 
-REPO_URL_WITH_TOKEN="https://${TOKEN}@github.com/ShadowSoldiers/PDF-Merge-Tools.git"
+REPO_URL_WITH_TOKEN="https://${TOKEN}@github.com/ShadowSoldiers/xeatools.git"
 
 # ── Step 1: Update Termux ────────────────────────────────────
 echo -e "${CYAN}[1/6] Update paket Termux...${NC}"

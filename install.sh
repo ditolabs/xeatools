@@ -11,7 +11,7 @@
 # ══════════════════════════════════════════════════════════════
 # KONFIGURASI — Ganti sesuai repo GitHub
 # ══════════════════════════════════════════════════════════════
-GITHUB_RAW="https://raw.githubusercontent.com/ShadowSoldiers/PDF-Merge-Tools/main"
+GITHUB_RAW="https://raw.githubusercontent.com/ShadowSoldiers/xeatools/main"
 INSTALL_DIR="$HOME/merge_pdf"
 BOOT_DIR="$HOME/.termux/boot"
 WIDGET_DIR="$HOME/.shortcuts"
