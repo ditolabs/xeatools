@@ -1,0 +1,34 @@
+# Konfigurasi pribadi — jangan di-push
+merge_pdf_config.json
+.merge_pdf_update
+
+# File hasil merge & download
+*.pdf
+estimasi_biaya.txt
+daftar_pelanggan_*.txt
+merge_log.txt
+
+# Folder output & arsip
+Hasil/
+File Kosong/
+Install/
+Maintenance/
+Repair - Service/
+Take Report/
+Lainnya/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Termux / Android
+.termux/
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
