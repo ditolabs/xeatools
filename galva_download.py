@@ -10,9 +10,9 @@ from datetime import datetime
 BASE_URL = "https://api.galva.co.id"
 SAVE_DIR = "/storage/emulated/0/Download/galva_docs"
 
-# Kredensial login akun XEA — ganti sesuai akun masing-masing
-USERNAME = "depo.surabaya.iii"
-PASSWORD = "e401614e"
+# Kredensial login akun XEA — diisi otomatis oleh setup.sh / tab Konfigurasi
+USERNAME = ""
+PASSWORD = ""
 
 TRIGGER_MAP = {
     "INST": ["CL"],

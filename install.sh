@@ -1,11 +1,11 @@
 #!/data/data/com.termux/files/usr/bin/bash
 # ╔══════════════════════════════════════════════════════════════╗
 # ║       PDF Merge Tools — Auto Installer v2                   ║
-# ║       MASDITO                        ║
+# ║       PT Galva Technologies Tbk                             ║
 # ║                                                             ║
 # ║  Cara pakai (di Termux):                                    ║
 # ║    curl -sSL https://raw.githubusercontent.com/             ║
-# ║      ShadowSoldiers/PDF-Merge-Tools/main/install.sh | bash             ║
+# ║      NAMA_USER/NAMA_REPO/main/install.sh | bash             ║
 # ╚══════════════════════════════════════════════════════════════╝
 
 # ══════════════════════════════════════════════════════════════
@@ -43,7 +43,7 @@ sep()  { echo -e "${CYAN}══════════════════�
 clear
 sep
 echo -e "  ${BOLD}${CYAN}PDF Merge Tools — Installer${RESET}"
-echo -e "  MASDITO"
+echo -e "  PT Galva Technologies Tbk"
 sep
 echo ""
 echo -e "  Installer ini akan:"
