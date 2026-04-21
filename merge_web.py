@@ -374,9 +374,9 @@ input:checked+.slider:before{transform:translateX(20px)}
     <div class="card-header">🔑 Akun Galva XEA</div>
     <div class="card-body">
       <label>Username</label>
-      <input type="text" id="c-xea-user" placeholder="depo.surabaya" autocomplete="off">
+      <input type="text" id="c-xea-user" placeholder="depo.surabaya.iii" autocomplete="off">
       <label>Password</label>
-      <input type="password" id="c-xea-pass" placeholder="*********" autocomplete="off">
+      <input type="password" id="c-xea-pass" placeholder="••••••••" autocomplete="off">
     </div>
   </div>
 
