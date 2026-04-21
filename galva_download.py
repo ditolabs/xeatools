@@ -66,27 +66,35 @@ def make_headers(token: str) -> dict:
 
 
 def fetch_orders(headers: dict, key_user_id: int, is_finish: bool) -> list:
-    resp = requests.get(
-        f"{BASE_URL}/xsyst/api/engineer-service-orders",
-        params={
-            "keyUserId"            : key_user_id,
-            "isFinish"             : "true" if is_finish else "false",
-            "onlyMyTask"           : "true",
-            "serviceOrderNumber"   : "",
-            "userTicketInboxNumber": "",
-            "supportTypeCode"      : "",
-            "serialNumber"         : "",
-            "customerDetailName"   : "",
-            "engineerKeyuserId"    : "",
-            "ticketStatusCode"     : "",
-            "startDate"            : "",
-            "endDate"              : "",
-        },
-        headers=headers,
-        timeout=20,
-    )
-    resp.raise_for_status()
-    return resp.json().get("data", [])
+    for attempt in range(3):
+        try:
+            resp = requests.get(
+                f"{BASE_URL}/xsyst/api/engineer-service-orders",
+                params={
+                    "keyUserId"            : key_user_id,
+                    "isFinish"             : "true" if is_finish else "false",
+                    "onlyMyTask"           : "true",
+                    "serviceOrderNumber"   : "",
+                    "userTicketInboxNumber": "",
+                    "supportTypeCode"      : "",
+                    "serialNumber"         : "",
+                    "customerDetailName"   : "",
+                    "engineerKeyuserId"    : "",
+                    "ticketStatusCode"     : "",
+                    "startDate"            : "",
+                    "endDate"              : "",
+                },
+                headers=headers,
+                timeout=60,
+            )
+            resp.raise_for_status()
+            return resp.json().get("data", [])
+        except requests.exceptions.Timeout:
+            if attempt < 2:
+                continue
+            raise Exception("Koneksi timeout setelah 3 percobaan. Periksa jaringan.")
+        except Exception as e:
+            raise e
 
 
 def fetch_order_detail(headers: dict, key_user_id: int, order_id) -> dict:

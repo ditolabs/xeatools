@@ -406,6 +406,9 @@ input:checked+.slider:before{transform:translateX(20px)}
       <div id="update-info" style="font-size:.85rem;color:var(--gray)">Memuat versi...</div>
       <div class="btn-row mt12">
         <button class="btn btn-outline" onclick="checkUpdate()">🔍 Cek Update</button>
+        <button class="btn btn-success hidden" id="btn-apply-update" onclick="applyUpdate()">
+          ⬇ Terapkan Update
+        </button>
       </div>
       <div id="update-status" class="mt8"></div>
     </div>
@@ -806,17 +809,45 @@ function saveConfig() {
 function checkUpdate() {
   const el = document.getElementById('update-status');
   el.innerHTML = '<div class="alert alert-info"><span class="spinner"></span> Mengecek...</div>';
+  document.getElementById('btn-apply-update').classList.add('hidden');
   fetch('/api/check-update').then(r=>r.json()).then(r=>{
     if (r.up_to_date) {
       el.innerHTML = '<div class="alert alert-success">✓ Sudah versi terbaru.</div>';
     } else if (r.has_update) {
-      el.innerHTML = `<div class="alert alert-warn">⚠ Ada update tersedia (remote: ${r.remote}).<br>
-        Jalankan <code style="font-family:monospace">bash update.sh</code> di Termux untuk update.</div>`;
+      el.innerHTML =
+        `<div class="alert alert-warn">⚠ Ada update tersedia!<br>
+         Lokal: <b>${r.local}</b> → GitHub: <b>${r.remote}</b><br>
+         <span class="dim" style="font-size:.78rem">File berubah: ${r.changed||''}</span></div>`;
+      document.getElementById('btn-apply-update').classList.remove('hidden');
     } else {
       el.innerHTML = `<div class="alert alert-warn">${r.msg||'Tidak bisa cek update.'}</div>`;
     }
   }).catch(()=>{
     el.innerHTML = '<div class="alert alert-error">Gagal cek update.</div>';
+  });
+}
+
+function applyUpdate() {
+  const el  = document.getElementById('update-status');
+  const btn = document.getElementById('btn-apply-update');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Menerapkan...';
+  el.innerHTML = '<div class="alert alert-info"><span class="spinner"></span> Mengunduh update dari GitHub...</div>';
+  fetch('/api/apply-update', {method:'POST'}).then(r=>r.json()).then(r=>{
+    if (r.ok) {
+      el.innerHTML =
+        `<div class="alert alert-success">✓ Update berhasil! Versi baru: <b>${r.version}</b><br>
+         <span class="dim">Server akan restart dalam 3 detik...</span></div>`;
+      setTimeout(()=>{ window.location.reload(); }, 3500);
+    } else {
+      el.innerHTML = `<div class="alert alert-error">✗ Update gagal: ${r.error}</div>`;
+      btn.disabled = false;
+      btn.innerHTML = '⬇ Terapkan Update';
+    }
+  }).catch(()=>{
+    el.innerHTML = '<div class="alert alert-error">Koneksi terputus saat update.</div>';
+    btn.disabled = false;
+    btn.innerHTML = '⬇ Terapkan Update';
   });
 }
 
@@ -998,16 +1029,44 @@ def api_check_update():
     try:
         work = str(Path(__file__).parent)
         subprocess.run(["git", "fetch", "origin", "main", "--quiet"],
-                       cwd=work, timeout=10, capture_output=True)
+                       cwd=work, timeout=15, capture_output=True)
         local  = subprocess.check_output(["git", "rev-parse", "--short", "HEAD"],
                                           cwd=work).decode().strip()
         remote = subprocess.check_output(["git", "rev-parse", "--short", "FETCH_HEAD"],
                                           cwd=work).decode().strip()
         if local == remote:
             return jsonify({"up_to_date": True, "local": local, "remote": remote})
-        return jsonify({"has_update": True, "local": local, "remote": remote})
+        # Daftar file yang berubah
+        changed = subprocess.check_output(
+            ["git", "diff", "--name-only", "HEAD", "FETCH_HEAD"],
+            cwd=work).decode().strip().replace("\n", ", ")
+        return jsonify({"has_update": True, "local": local,
+                        "remote": remote, "changed": changed})
     except Exception as e:
         return jsonify({"msg": str(e)})
+
+@app.route("/api/apply-update", methods=["POST"])
+def api_apply_update():
+    try:
+        work = str(Path(__file__).parent)
+        # Fetch & reset hard — tidak peduli diverged history
+        subprocess.run(["git", "fetch", "origin", "main", "--quiet"],
+                       cwd=work, timeout=30, capture_output=True, check=True)
+        subprocess.run(["git", "reset", "--hard", "FETCH_HEAD"],
+                       cwd=work, capture_output=True, check=True)
+        new_ver = subprocess.check_output(
+            ["git", "rev-parse", "--short", "HEAD"], cwd=work).decode().strip()
+        # Restart server di background setelah response dikirim
+        def restart():
+            import time, signal
+            time.sleep(1)
+            os.kill(os.getpid(), signal.SIGTERM)
+        threading.Thread(target=restart, daemon=True).start()
+        return jsonify({"ok": True, "version": new_ver})
+    except subprocess.CalledProcessError as e:
+        return jsonify({"ok": False, "error": e.stderr.decode() if e.stderr else str(e)})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)})
 
 # ── Ringkasan ────────────────────────────────────────────────
 @app.route("/api/ringkasan")
