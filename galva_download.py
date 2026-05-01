@@ -132,127 +132,84 @@ def decode_base64(raw: str) -> bytes:
         return base64.b64decode(padded2)
 
 
-def jpg_to_pdf_bytes(img_bytes: bytes) -> bytes:
-    """Konversi bytes JPG/PNG ke bytes PDF single-page."""
-    try:
-        from pypdf import PdfWriter
-        import struct, zlib
 
-        # Deteksi ukuran gambar dari header JPEG
-        # Pakai pendekatan sederhana: bungkus image sebagai PDF dengan image XObject
-        # Library PIL tidak tersedia di Termux by default, pakai pypdf
-        writer = PdfWriter()
-
-        # Tulis JPG langsung sebagai PDF image menggunakan img2pdf pattern
-        # Baca lebar/tinggi dari header JPEG (SOF marker)
-        w, h = 595, 842  # default A4 jika gagal baca
-        try:
-            i = 0
-            while i < len(img_bytes) - 1:
-                if img_bytes[i] != 0xFF:
-                    break
-                marker = img_bytes[i+1]
-                if marker in (0xC0, 0xC1, 0xC2):  # SOF marker
-                    h = struct.unpack('>H', img_bytes[i+4:i+6])[0]
-                    w = struct.unpack('>H', img_bytes[i+6:i+8])[0]
-                    break
-                elif marker in (0xD8, 0xD9, 0x01) or (0xD0 <= marker <= 0xD7):
-                    i += 2
-                else:
-                    length = struct.unpack('>H', img_bytes[i+2:i+4])[0]
-                    i += 2 + length
-        except Exception:
-            pass
-
-        from pypdf.generic import (ArrayObject, DecodedStreamObject,
-                                   NameObject, NumberObject, DictionaryObject)
-        page = writer.add_blank_page(width=w, height=h)
-
-        img_stream = DecodedStreamObject()
-        img_stream._data = img_bytes
-        img_stream.update({
-            NameObject("/Type")            : NameObject("/XObject"),
-            NameObject("/Subtype")         : NameObject("/Image"),
-            NameObject("/Width")           : NumberObject(w),
-            NameObject("/Height")          : NumberObject(h),
-            NameObject("/ColorSpace")      : NameObject("/DeviceRGB"),
-            NameObject("/BitsPerComponent"): NumberObject(8),
-            NameObject("/Filter")          : NameObject("/DCTDecode"),
-        })
-
-        page.merge_page(writer.pages[0])
-        resources = DictionaryObject()
-        xobject   = DictionaryObject()
-        xobject[NameObject("/Img")] = writer._add_object(img_stream)
-        resources[NameObject("/XObject")] = xobject
-        page[NameObject("/Resources")] = resources
-
-        content = b"q %d 0 0 %d 0 0 cm /Img Do Q" % (w, h)
-        page[NameObject("/Contents")] = writer._add_object(
-            DecodedStreamObject.initialize_from_dictionary(
-                {NameObject("/Length"): NumberObject(len(content))}
-            )
-        )
-        page["/Contents"].get_object()._data = content
-
-        import io
-        buf = io.BytesIO()
-        writer.write(buf)
-        return buf.getvalue()
-
-    except Exception:
-        # Fallback: minimal valid PDF yang embed JPG langsung
-        return _minimal_jpg_pdf(img_bytes)
+def _read_jpeg_dimensions(data: bytes):
+    """Baca lebar dan tinggi dari header JPEG dengan parsing SOF marker yang benar."""
+    i = 2 if data[:2] == b'\xff\xd8' else 0
+    while i < len(data) - 3:
+        if data[i] != 0xFF:
+            i += 1
+            continue
+        marker = data[i+1]
+        if marker in (0xC0, 0xC1, 0xC2, 0xC3, 0xC5, 0xC6, 0xC7,
+                      0xC9, 0xCA, 0xCB, 0xCD, 0xCE, 0xCF):
+            if i + 8 < len(data):
+                h = (data[i+5] << 8) | data[i+6]
+                w = (data[i+7] << 8) | data[i+8]
+                if w > 0 and h > 0:
+                    return w, h
+            break
+        elif marker in (0xD8, 0xD9) or (0xD0 <= marker <= 0xD7) or marker == 0x01:
+            i += 2
+        else:
+            if i + 3 >= len(data): break
+            length = (data[i+2] << 8) | data[i+3]
+            i += 2 + length
+    return None, None
 
 
 def _minimal_jpg_pdf(jpg: bytes) -> bytes:
-    """Buat PDF minimal yang embed JPG — tidak butuh library tambahan."""
-    import struct, io
+    """
+    Buat PDF minimal yang embed JPG langsung.
+    MediaBox disesuaikan dengan dimensi asli gambar sehingga tidak terpotong/miring.
+    """
+    import io
 
-    # Baca dimensi dari JPEG header
-    w, h = 595, 842
+    w, h = _read_jpeg_dimensions(jpg)
+    if not w or not h:
+        w, h = 595, 842  # fallback A4 portrait
+
+    img_len = len(jpg)
+
+    # Deteksi color space dari SOF
+    color_space = "/DeviceRGB"
     try:
-        i = 0
-        while i < len(jpg) - 1:
+        i = 2
+        while i < len(jpg) - 3:
             if jpg[i] != 0xFF: break
-            marker = jpg[i+1]
-            if marker in (0xC0, 0xC1, 0xC2):
-                h = struct.unpack('>H', jpg[i+4:i+6])[0]
-                w = struct.unpack('>H', jpg[i+6:i+8])[0]
+            m = jpg[i+1]
+            if m in (0xC0, 0xC1, 0xC2):
+                components = jpg[i+9] if i+9 < len(jpg) else 3
+                if components == 1:   color_space = "/DeviceGray"
+                elif components == 4: color_space = "/DeviceCMYK"
                 break
-            elif marker in (0xD8, 0xD9, 0x01) or (0xD0 <= marker <= 0xD7):
+            elif m in (0xD8, 0xD9) or (0xD0 <= m <= 0xD7) or m == 0x01:
                 i += 2
             else:
-                length = struct.unpack('>H', jpg[i+2:i+4])[0]
+                length = (jpg[i+2] << 8) | jpg[i+3]
                 i += 2 + length
     except Exception:
         pass
 
-    img_len = len(jpg)
-    # Minimal PDF structure
     pdf = io.BytesIO()
-    pdf.write(b"%PDF-1.4\n")
-
+    pdf.write(b"%PDF-1.4\n%\xe2\xe3\xcf\xd3\n")
     offsets = []
 
-    # Object 1: catalog
     offsets.append(pdf.tell())
     pdf.write(b"1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n")
 
-    # Object 2: pages
     offsets.append(pdf.tell())
     pdf.write(b"2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n")
 
-    # Object 3: page
     offsets.append(pdf.tell())
-    pdf.write(
+    pdf.write((
         f"3 0 obj\n<< /Type /Page /Parent 2 0 R "
         f"/MediaBox [0 0 {w} {h}] "
-        f"/Contents 4 0 R /Resources << /XObject << /Im1 5 0 R >> >> >>\nendobj\n"
-        .encode()
-    )
+        f"/Contents 4 0 R "
+        f"/Resources << /XObject << /Im1 5 0 R >> >> "
+        f">>\nendobj\n"
+    ).encode())
 
-    # Object 4: content stream
     stream = f"q {w} 0 0 {h} 0 0 cm /Im1 Do Q".encode()
     offsets.append(pdf.tell())
     pdf.write(
@@ -260,28 +217,26 @@ def _minimal_jpg_pdf(jpg: bytes) -> bytes:
         + stream + b"\nendstream\nendobj\n"
     )
 
-    # Object 5: image XObject
     offsets.append(pdf.tell())
-    pdf.write(
+    pdf.write((
         f"5 0 obj\n<< /Type /XObject /Subtype /Image "
-        f"/Width {w} /Height {h} /ColorSpace /DeviceRGB "
-        f"/BitsPerComponent 8 /Filter /DCTDecode /Length {img_len} >>\nstream\n"
-        .encode()
-    )
+        f"/Width {w} /Height {h} "
+        f"/ColorSpace {color_space} "
+        f"/BitsPerComponent 8 /Filter /DCTDecode "
+        f"/Length {img_len} >>\nstream\n"
+    ).encode())
     pdf.write(jpg)
     pdf.write(b"\nendstream\nendobj\n")
 
-    # xref table
     xref_pos = pdf.tell()
     pdf.write(f"xref\n0 6\n0000000000 65535 f \n".encode())
     for off in offsets:
         pdf.write(f"{off:010d} 00000 n \n".encode())
     pdf.write(
-        f"trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n{xref_pos}\n%%EOF\n"
-        .encode()
+        f"trailer\n<< /Size 6 /Root 1 0 R >>\n"
+        f"startxref\n{xref_pos}\n%%EOF\n".encode()
     )
     return pdf.getvalue()
-
 
 def is_jpg_bytes(data: bytes) -> bool:
     """Cek apakah bytes adalah JPEG."""
