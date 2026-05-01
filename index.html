@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>XEA Tools - PDF Merge</title>
+  <style>
+    :root {
+      --navy: #1a3c5e;
+      --teal: #0891b2;
+      --lteal: #e0f7ff;
+      --gray: #64748b;
+      --lgray: #f0f4f8;
+      --dark: #0f172a;
+      --white: #ffffff;
+    }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background-color: var(--lgray);
+      color: var(--dark);
+      line-height: 1.6;
+    }
+    .header {
+      background: var(--navy);
+      color: var(--white);
+      padding: 40px 20px;
+      text-align: center;
+      border-bottom: 4px solid var(--teal);
+    }
+    .header h1 {
+      font-size: 2.5rem;
+      color: var(--teal);
+      margin-bottom: 10px;
+    }
+    .header p {
+      font-size: 1.1rem;
+      color: #94a3b8;
+      max-width: 600px;
+      margin: 0 auto;
+    }
+    .container {
+      max-width: 800px;
+      margin: 40px auto;
+      padding: 0 20px;
+    }
+    .card {
+      background: var(--white);
+      border-radius: 12px;
+      border: 1px solid #e2e8f0;
+      padding: 30px;
+      margin-bottom: 24px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+    }
+    .card h2 {
+      color: var(--navy);
+      margin-bottom: 15px;
+      font-size: 1.5rem;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .code-block {
+      background: #1e293b;
+      color: #e2e8f0;
+      padding: 20px;
+      border-radius: 8px;
+      font-family: monospace;
+      font-size: 0.95rem;
+      position: relative;
+      overflow-x: auto;
+      margin: 15px 0;
+      border-left: 4px solid var(--teal);
+    }
+    .features {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 20px;
+      margin-top: 20px;
+    }
+    .feature-item {
+      background: var(--lteal);
+      padding: 20px;
+      border-radius: 8px;
+      border-left: 4px solid var(--teal);
+    }
+    .feature-item h3 {
+      color: var(--teal);
+      font-size: 1.1rem;
+      margin-bottom: 8px;
+    }
+    .feature-item p {
+      font-size: 0.9rem;
+      color: var(--dark);
+    }
+    .footer {
+      text-align: center;
+      padding: 20px;
+      color: var(--gray);
+      font-size: 0.9rem;
+      margin-top: 40px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <h1>XEA Tools</h1>
+    <p>Otomatisasi pengunduhan, penggabungan, dan pelaporan dokumen PDF (STBA & STAT) untuk teknisi via Termux Android.</p>
+  </div>
+
+  <div class="container">
+    
+    <div class="card">
+      <h2>🚀 Cara Instalasi di Android</h2>
+      <p>Aplikasi ini dirancang untuk berjalan secara lokal di perangkat Android menggunakan <strong>Termux</strong>. Untuk menginstal seluruh kebutuhan (Python, Flask, PyPDF) dan mengonfigurasi otomatis, cukup jalankan perintah berikut di Termux Anda:</p>
+      
+      <div class="code-block">
+curl -sSL https://raw.githubusercontent.com/ShadowSoldiers/xeatools/main/install.sh | bash
+      </div>
+      
+      <p style="font-size: 0.9rem; color: var(--gray); margin-top: 10px;">
+        <em>Catatan: Installer akan meminta Anda untuk memasukkan kredensial Galva XEA dan opsi konfigurasi email.</em>
+      </p>
+    </div>
+
+    <div class="card">
+      <h2>✨ Fitur Utama</h2>
+      <div class="features">
+        <div class="feature-item">
+          <h3>📥 Auto Download</h3>
+          <p>Tarik dokumen dari API Galva XEA berdasarkan rentang tanggal. Otomatis mengonversi dokumen format JPG menjadi PDF (jika ada).</p>
+        </div>
+        <div class="feature-item">
+          <h3>🔗 Smart Merge</h3>
+          <p>Otomatis mencocokkan dan menggabungkan dokumen STBA dan STAT berdasarkan nomor order. Menghindari pemrosesan duplikat.</p>
+        </div>
+        <div class="feature-item">
+          <h3>📧 Email & Laporan</h3>
+          <p>Kirim hasil penggabungan via email langsung ke klien/manajemen, lengkap dengan rincian nama pelanggan dan nomor seri.</p>
+        </div>
+        <div class="feature-item">
+          <h3>🌐 Local Web GUI</h3>
+          <p>Memiliki antarmuka pengguna berbasis web (Flask) yang cantik dan responsif, dapat diakses langsung dari Chrome Android via localhost.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>🛠 Cara Menjalankan Aplikasi</h2>
+      <p>Setelah instalasi selesai, Anda bisa menjalankan aplikasi melalui *shortcut* yang ada di Termux:Widget, atau jalankan perintah manual berikut:</p>
+      <div class="code-block" style="border-left-color: var(--gray);">
+cd ~/merge_pdf
+bash start_manual.sh
+      </div>
+      <p style="margin-top: 15px;">Lalu buka peramban web (Chrome) di HP Anda ke tautan: <strong>http://localhost:5000</strong></p>
+    </div>
+
+  </div>
+
+  <div class="footer">
+    &copy; 2026 PT Galva Technologies Tbk - Developed by ShadowSoldiers
+  </div>
+
+</body>
+</html>
